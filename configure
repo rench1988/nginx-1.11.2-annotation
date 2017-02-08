@@ -1,0 +1,116 @@
+#!/bin/sh
+
+# Copyright (C) Igor Sysoev
+# Copyright (C) Nginx, Inc.
+
+
+LC_ALL=C
+export LC_ALL
+
+. auto/options  #处理configure的命令行选项
+. auto/init     #创建主makefile文件，为obj中需要生成的.c,.h文件名赋值
+. auto/sources  #归类各模块的源文件，并且为相应变量赋值
+
+test -d $NGX_OBJS || mkdir -p $NGX_OBJS  #创建obj文件夹
+
+echo > $NGX_AUTO_HEADERS_H  #创建ngx_auto_headers.h
+echo > $NGX_AUTOCONF_ERR
+
+echo "#define NGX_CONFIGURE \"$NGX_CONFIGURE\"" > $NGX_AUTO_CONFIG_H
+
+
+if [ $NGX_DEBUG = YES ]; then
+    have=NGX_DEBUG . auto/have  #have脚本写入ngx_auto_config.h
+fi
+
+
+if test -z "$NGX_PLATFORM"; then
+    echo "checking for OS"
+
+    NGX_SYSTEM=`uname -s 2>/dev/null`
+    NGX_RELEASE=`uname -r 2>/dev/null`
+    NGX_MACHINE=`uname -m 2>/dev/null`
+
+    echo " + $NGX_SYSTEM $NGX_RELEASE $NGX_MACHINE"
+
+    NGX_PLATFORM="$NGX_SYSTEM:$NGX_RELEASE:$NGX_MACHINE";
+
+    case "$NGX_SYSTEM" in
+        MINGW32_*)
+            NGX_PLATFORM=win32
+        ;;
+    esac
+
+else
+    echo "building for $NGX_PLATFORM"
+    NGX_SYSTEM=$NGX_PLATFORM
+fi
+
+. auto/cc/conf  #编译器相关配置
+
+if [ "$NGX_PLATFORM" != win32 ]; then
+    . auto/headers  #检查特定的系统头文件是否存在，如果存在则在ngx_auto_headers.h中定义相应的宏
+fi
+
+. auto/os/conf  #和系统相关的特性值，将系统特性值通过宏的方式写入ngx_auto_config.h和ngx_auto_headers.h
+
+if [ "$NGX_PLATFORM" != win32 ]; then
+    . auto/unix  #unix类操作系统的特性值检查
+fi
+
+. auto/threads  #线程池模块的支持
+. auto/modules  #最重要的一块，配置各个模块，加载第三方插件等
+. auto/lib/conf #第三方库的配置
+
+case ".$NGX_PREFIX" in
+    .)
+        NGX_PREFIX=${NGX_PREFIX:-/usr/local/nginx}
+        have=NGX_PREFIX value="\"$NGX_PREFIX/\"" . auto/define
+    ;;
+
+    .!)
+        NGX_PREFIX=
+    ;;
+
+    *)
+        have=NGX_PREFIX value="\"$NGX_PREFIX/\"" . auto/define
+    ;;
+esac
+
+if [ ".$NGX_CONF_PREFIX" != "." ]; then
+    have=NGX_CONF_PREFIX value="\"$NGX_CONF_PREFIX/\"" . auto/define
+fi
+
+have=NGX_SBIN_PATH value="\"$NGX_SBIN_PATH\"" . auto/define
+have=NGX_CONF_PATH value="\"$NGX_CONF_PATH\"" . auto/define
+have=NGX_PID_PATH value="\"$NGX_PID_PATH\"" . auto/define
+have=NGX_LOCK_PATH value="\"$NGX_LOCK_PATH\"" . auto/define
+have=NGX_ERROR_LOG_PATH value="\"$NGX_ERROR_LOG_PATH\"" . auto/define
+
+have=NGX_HTTP_LOG_PATH value="\"$NGX_HTTP_LOG_PATH\"" . auto/define
+have=NGX_HTTP_CLIENT_TEMP_PATH value="\"$NGX_HTTP_CLIENT_TEMP_PATH\""
+. auto/define
+have=NGX_HTTP_PROXY_TEMP_PATH value="\"$NGX_HTTP_PROXY_TEMP_PATH\""
+. auto/define
+have=NGX_HTTP_FASTCGI_TEMP_PATH value="\"$NGX_HTTP_FASTCGI_TEMP_PATH\""
+. auto/define
+have=NGX_HTTP_UWSGI_TEMP_PATH value="\"$NGX_HTTP_UWSGI_TEMP_PATH\""
+. auto/define
+have=NGX_HTTP_SCGI_TEMP_PATH value="\"$NGX_HTTP_SCGI_TEMP_PATH\""
+. auto/define
+
+. auto/make  #在obj目录下生成makefile文件
+. auto/lib/make
+. auto/install  #这个是干啥的
+
+# STUB
+. auto/stubs
+
+have=NGX_USER value="\"$NGX_USER\"" . auto/define
+have=NGX_GROUP value="\"$NGX_GROUP\"" . auto/define
+
+if [ ".$NGX_BUILD" != "." ]; then
+    have=NGX_BUILD value="\"$NGX_BUILD\"" . auto/define
+fi
+
+. auto/summary
