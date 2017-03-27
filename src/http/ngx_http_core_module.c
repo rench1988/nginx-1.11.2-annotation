@@ -796,7 +796,7 @@ ngx_http_handler(ngx_http_request_t *r)
     if (!r->internal) {
         switch (r->headers_in.connection_type) {
         case 0:
-            r->keepalive = (r->http_version > NGX_HTTP_VERSION_10);
+            r->keepalive = (r->http_version > NGX_HTTP_VERSION_10);  //http 1.1默认使用keepalive
             break;
 
         case NGX_HTTP_CONNECTION_CLOSE:
@@ -809,8 +809,8 @@ ngx_http_handler(ngx_http_request_t *r)
         }
 
         r->lingering_close = (r->headers_in.content_length_n > 0
-                              || r->headers_in.chunked);
-        r->phase_handler = 0;
+                              || r->headers_in.chunked);  //有http request body就设置lingering_close
+        r->phase_handler = 0;  //多阶段处理的索引
 
     } else {
         cmcf = ngx_http_get_module_main_conf(r, ngx_http_core_module);
@@ -843,7 +843,7 @@ ngx_http_core_run_phases(ngx_http_request_t *r)
     while (ph[r->phase_handler].checker) {
 
         rc = ph[r->phase_handler].checker(r, &ph[r->phase_handler]);
-
+        //rc == NGX_OK退出！！！！！！！
         if (rc == NGX_OK) {
             return;
         }
@@ -935,7 +935,7 @@ ngx_http_core_find_config_phase(ngx_http_request_t *r,
     }
 
     clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
-
+    //这个判断代表什么?
     if (!r->internal && clcf->internal) {
         ngx_http_finalize_request(r, NGX_HTTP_NOT_FOUND);
         return NGX_OK;
@@ -966,7 +966,7 @@ ngx_http_core_find_config_phase(ngx_http_request_t *r,
         ngx_http_finalize_request(r, NGX_HTTP_REQUEST_ENTITY_TOO_LARGE);
         return NGX_OK;
     }
-
+    //uri后面加一个/就等于location的情况
     if (rc == NGX_DONE) {
         ngx_http_clear_location(r);
 

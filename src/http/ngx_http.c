@@ -456,9 +456,9 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
     find_config_index = 0;
     use_rewrite = cmcf->phases[NGX_HTTP_REWRITE_PHASE].handlers.nelts ? 1 : 0;
     use_access = cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers.nelts ? 1 : 0;
-
+    //为什么要加上cmcf->try_files?(try_files也是一个阶段)
     n = use_rewrite + use_access + cmcf->try_files + 1 /* find config phase */;
-
+    //上面加一是加一个find config phase的handler
     for (i = 0; i < NGX_HTTP_LOG_PHASE; i++) {
         n += cmcf->phases[i].handlers.nelts;
     }
@@ -479,13 +479,13 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 
         case NGX_HTTP_SERVER_REWRITE_PHASE:
             if (cmcf->phase_engine.server_rewrite_index == (ngx_uint_t) -1) {
-                cmcf->phase_engine.server_rewrite_index = n;
+                cmcf->phase_engine.server_rewrite_index = n;  //server_rewrite_index指向SERVER_REWRITE_PHASE阶段第一个handler
             }
             checker = ngx_http_core_rewrite_phase;
 
             break;
 
-        case NGX_HTTP_FIND_CONFIG_PHASE:
+        case NGX_HTTP_FIND_CONFIG_PHASE:  //find config phase阶段只有一个handler
             find_config_index = n;
 
             ph->checker = ngx_http_core_find_config_phase;
@@ -502,7 +502,7 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 
             break;
 
-        case NGX_HTTP_POST_REWRITE_PHASE:
+        case NGX_HTTP_POST_REWRITE_PHASE:  //rewrite之后可能要重新find_config,所以要有一个POST_REWRITE_PHASE
             if (use_rewrite) {
                 ph->checker = ngx_http_core_post_rewrite_phase;
                 ph->next = find_config_index;
@@ -511,10 +511,10 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
             }
 
             continue;
-
+            //ACCESS_PHASE和POST_ACCESS_PHASE的next都指向TRY_FILES_PHASE
         case NGX_HTTP_ACCESS_PHASE:
             checker = ngx_http_core_access_phase;
-            n++;
+            n++;  //这个n++相当于是加了POST_ACCESS_PHASE的handler,这样next就可以指向POST_ACCESS_PHASE后面的handler了
             break;
 
         case NGX_HTTP_POST_ACCESS_PHASE:
@@ -526,7 +526,7 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 
             continue;
 
-        case NGX_HTTP_TRY_FILES_PHASE:
+        case NGX_HTTP_TRY_FILES_PHASE:   //TRY_FILES_PHASE只有一个handler
             if (cmcf->try_files) {
                 ph->checker = ngx_http_core_try_files_phase;
                 n++;
@@ -539,16 +539,16 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
             checker = ngx_http_core_content_phase;
             break;
 
-        default:
+        default:  //POST_READ_PHASE, PREACCESS_PHASE, LOG_PHASE到此
             checker = ngx_http_core_generic_phase;
         }
 
         n += cmcf->phases[i].handlers.nelts;
-
+        //同一个阶段最后一个handler最先执行
         for (j = cmcf->phases[i].handlers.nelts - 1; j >=0; j--) {
             ph->checker = checker;
             ph->handler = h[j];
-            ph->next = n;
+            ph->next = n;   //next指向下一个阶段的第一个handler
             ph++;
         }
     }

@@ -659,7 +659,7 @@ ngx_http_read_discarded_request_body(ngx_http_request_t *r)
     ssize_t    n;
     ngx_int_t  rc;
     ngx_buf_t  b;
-    u_char     buffer[NGX_HTTP_DISCARD_BUFFER_SIZE];
+    u_char     buffer[NGX_HTTP_DISCARD_BUFFER_SIZE];   //不断的重用这个buffer
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "http read discarded body");

@@ -821,7 +821,7 @@ done:
     }
 
     r->http_version = r->http_major * 1000 + r->http_minor;
-    r->state = sw_start;
+    r->state = sw_start;   //解析url完毕r->state会置为0
 
     if (r->http_version == 9 && r->method != NGX_HTTP_GET) {
         return NGX_HTTP_PARSE_INVALID_09_METHOD;

@@ -294,7 +294,7 @@ ngx_http_init_connection(ngx_connection_t *c)
 
     /* the default server configuration for the address:port */
     hc->conf_ctx = hc->addr_conf->default_server->ctx;
-    //ngx_http_log_ctx_t有啥用?
+    //ngx_http_log_ctx_t有啥用?(保存相关的结构体用于记录日志)
     ctx = ngx_palloc(c->pool, sizeof(ngx_http_log_ctx_t));
     if (ctx == NULL) {
         ngx_http_close_connection(c);
@@ -351,7 +351,7 @@ ngx_http_init_connection(ngx_connection_t *c)
         hc->proxy_protocol = 1;
         c->log->action = "reading PROXY protocol";
     }
-
+    //没有设置deferred accept的时候rev->ready不会置位
     if (rev->ready) {
         /* the deferred accept(), iocp */
 
@@ -446,7 +446,7 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
         /*
          * We are trying to not hold c->buffer's memory for an idle connection.
          */
-
+        //ngx_pfree只会释放pool里面large内存
         if (ngx_pfree(c->pool, b->start) == NGX_OK) {
             b->start = NULL;
         }
@@ -490,7 +490,7 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
     }
 
     c->log->action = "reading client request line";
-
+    //从reusable连接队列拿出来
     ngx_reusable_connection(c, 0);
 
     c->data = ngx_http_create_request(c);
@@ -549,7 +549,7 @@ ngx_http_create_request(ngx_connection_t *c)
 
     ngx_set_connection_log(r->connection, clcf->error_log);
 
-    r->header_in = hc->nbusy ? hc->busy[0] : c->buffer;
+    r->header_in = hc->nbusy ? hc->busy[0] : c->buffer;  //busy? keep_alive的时候重用?(用于pipe request的情况)
 
     if (ngx_list_init(&r->headers_out.headers, r->pool, 20,
                       sizeof(ngx_table_elt_t))
@@ -588,7 +588,7 @@ ngx_http_create_request(ngx_connection_t *c)
     r->start_msec = tp->msec;
 
     r->method = NGX_HTTP_UNKNOWN;
-    r->http_version = NGX_HTTP_VERSION_10;
+    r->http_version = NGX_HTTP_VERSION_10;   //默认1.0
 
     r->headers_in.content_length_n = -1;
     r->headers_in.keep_alive_n = -1;
@@ -987,7 +987,7 @@ ngx_http_process_request_line(ngx_event_t *rev)
                 }
 
                 if (rc == NGX_ERROR) {
-                    ngx_http_close_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+                    ngx_http_close_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);  //ngx_http_close_request不会发送回复
                     return;
                 }
 
@@ -1227,7 +1227,7 @@ ngx_http_process_request_headers(ngx_event_t *rev)
                 if (rv == NGX_DECLINED) {
                     p = r->header_name_start;
 
-                    r->lingering_close = 1;
+                    r->lingering_close = 1;   //lingering_close避免马上发送rst?
 
                     if (p == NULL) {
                         ngx_log_error(NGX_LOG_INFO, c->log, 0,
@@ -1435,7 +1435,7 @@ ngx_http_alloc_large_header_buffer(ngx_http_request_t *r,
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "http alloc large header buffer");
 
-    if (request_line && r->state == 0) {
+    if (request_line && r->state == 0) {  //防攻击
 
         /* the client fills up the buffer with "\r\n" */
 
@@ -1497,7 +1497,7 @@ ngx_http_alloc_large_header_buffer(ngx_http_request_t *r,
          * and we do not need to copy incomplete header line and
          * to relocate the parser header pointers
          */
-
+        //解析头部的时候为什么不copy?(不是不用copy,而是r->state == 0可能表示刚好读完url就没有空间读头部了,出现b->pos == b->last的情况)
         r->header_in = b;
 
         return NGX_OK;
@@ -1767,7 +1767,7 @@ ngx_http_process_multi_header_lines(ngx_http_request_t *r, ngx_table_elt_t *h,
 
 ngx_int_t
 ngx_http_process_request_header(ngx_http_request_t *r)
-{
+{   //优先使用url中的host
     if (r->headers_in.server.len == 0
         && ngx_http_set_virtual_server(r, &r->headers_in.server)
            == NGX_ERROR)
@@ -1809,7 +1809,7 @@ ngx_http_process_request_header(ngx_http_request_t *r)
         {
             r->headers_in.content_length = NULL;
             r->headers_in.content_length_n = -1;
-            r->headers_in.chunked = 1;
+            r->headers_in.chunked = 1;   //chunked标识
 
         } else if (r->headers_in.transfer_encoding->value.len != 8
             || ngx_strncasecmp(r->headers_in.transfer_encoding->value.data,
@@ -1897,16 +1897,16 @@ ngx_http_process_request(ngx_http_request_t *r)
 #endif
 
     if (c->read->timer_set) {
-        ngx_del_timer(c->read);
+        ngx_del_timer(c->read);   //开始多阶段请求处理的时候定时器已经删除了
     }
 
 #if (NGX_STAT_STUB)
     (void) ngx_atomic_fetch_add(ngx_stat_reading, -1);
     r->stat_reading = 0;
     (void) ngx_atomic_fetch_add(ngx_stat_writing, 1);
-    r->stat_writing = 1;
+    r->stat_writing = 1;   // r->stat_writing表示要开始回复了
 #endif
-
+    //改变c->read->handler和c->write->handler开始多阶段处理,此时模块可以设置r->read_event_handler和write_event_handler处理自己的网络异步?
     c->read->handler = ngx_http_request_handler;
     c->write->handler = ngx_http_request_handler;
     r->read_event_handler = ngx_http_block_reading;
@@ -2076,7 +2076,7 @@ ngx_http_set_virtual_server(ngx_http_request_t *r, ngx_str_t *host)
 
 #endif
 
-    if (rc == NGX_DECLINED) {
+    if (rc == NGX_DECLINED) {  //没有找到虚拟域名的情况?
         return NGX_OK;
     }
 
@@ -2294,7 +2294,7 @@ ngx_http_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
     if (rc == NGX_ERROR
         || rc == NGX_HTTP_REQUEST_TIME_OUT
         || rc == NGX_HTTP_CLIENT_CLOSED_REQUEST
-        || c->error)
+        || c->error)  //c->error一般表示套接字网络发生错误?
     {
         if (ngx_http_post_action(r) == NGX_OK) {
             return;
@@ -2441,7 +2441,7 @@ ngx_http_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
         ngx_http_close_request(r, 0);
         return;
     }
-
+    //keepalive 或者 linger_close 或者 close
     ngx_http_finalize_connection(r);
 }
 
@@ -2859,7 +2859,7 @@ ngx_http_set_keepalive(ngx_http_request_t *r)
 
     hc = r->http_connection;
     b = r->header_in;
-
+    //要是b->pos不小于b->last就不重用hc里面的buffer了吗?
     if (b->pos < b->last) {
 
         /* the pipelined request */
@@ -3398,7 +3398,7 @@ ngx_http_close_request(ngx_http_request_t *r, ngx_int_t rc)
     }
 
     r->count--;
-
+    //r->blocked是什么?
     if (r->count || r->blocked) {
         return;
     }
@@ -3466,7 +3466,7 @@ ngx_http_free_request(ngx_http_request_t *r, ngx_int_t rc)
     ngx_http_log_request(r);
 
     log->action = "closing request";
-
+    //connection->timedout是什么?
     if (r->connection->timedout) {
         clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
 

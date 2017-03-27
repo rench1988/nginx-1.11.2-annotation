@@ -885,7 +885,7 @@ ngx_epoll_process_events(ngx_cycle_t *cycle, ngx_msec_t timer, ngx_uint_t flags)
                 rev->pending_eof = 1;   //pending_eof啥意思?
             }
 
-            rev->available = 1;
+            rev->available = 1;   //这个available代表什么?
 #endif
 
             rev->ready = 1;

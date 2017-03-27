@@ -38,7 +38,7 @@ ngx_create_temp_buf(ngx_pool_t *pool, size_t size)
     b->pos = b->start;
     b->last = b->start;
     b->end = b->last + size;
-    b->temporary = 1;
+    b->temporary = 1; //temporary代表什么意思?
 
     return b;
 }

@@ -139,7 +139,7 @@ struct ngx_http_phase_handler_s {
 
 
 typedef struct {
-    ngx_http_phase_handler_t  *handlers;
+    ngx_http_phase_handler_t  *handlers;  //结构体数组,多阶段处理都是调用的里面的checker,checker里面再调用handler
     ngx_uint_t                 server_rewrite_index;
     ngx_uint_t                 location_rewrite_index;
 } ngx_http_phase_engine_t;

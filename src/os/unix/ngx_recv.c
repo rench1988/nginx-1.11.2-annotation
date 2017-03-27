@@ -122,7 +122,7 @@ ngx_unix_recv(ngx_connection_t *c, u_char *buf, size_t size)
                 && ngx_use_epoll_rdhup)
             {
                 if ((size_t) n < size) {
-                    if (!rev->pending_eof) {
+                    if (!rev->pending_eof) {   //代表还有eof可以读,因此不置rev->ready = 0?
                         rev->ready = 0;
                     }
 
